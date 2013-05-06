@@ -32,19 +32,27 @@ public class ProxyService extends Service {
 					Selector selector = Selector.open();
 
 					// Proxy http
-					ServerSocketChannel proxy = ServerSocketChannel.open();
-					proxy.configureBlocking(false);
-					proxy.socket().bind(new InetSocketAddress(PROXY_HTTP_PORT));
-					SelectionKey proxyHttpKey = proxy.register(selector, SelectionKey.OP_ACCEPT);
+					ServerSocketChannel proxyHttp = ServerSocketChannel.open();
+					proxyHttp.configureBlocking(false);
+					proxyHttp.socket().bind(new InetSocketAddress(PROXY_HTTP_PORT));
+					SelectionKey proxyHttpKey = proxyHttp.register(selector, SelectionKey.OP_ACCEPT);
 					proxyHttpKey.attach(new HttpProxyHandler());
 					Log.i(ProxyService.class.getName(), "Proxy binded to the port " + PROXY_HTTP_PORT);
+
+					// Proxy https
+					ServerSocketChannel proxyHttps = ServerSocketChannel.open();
+					proxyHttps.configureBlocking(false);
+					proxyHttps.socket().bind(new InetSocketAddress(PROXY_HTTPS_PORT));
+					SelectionKey proxyHttpsKey = proxyHttps.register(selector, SelectionKey.OP_ACCEPT);
+					proxyHttpsKey.attach(new HttpsProxyHandler());
+					Log.i(ProxyService.class.getName(), "Proxy binded to the port " + PROXY_HTTPS_PORT);
 
 					while (!Thread.interrupted()) {
 						selector.select();
 
 						for (SelectionKey key : selector.selectedKeys()) {
 							if (!key.isValid()) {
-								((ConnectionHandler) key.attachment()).close();
+								key.channel().close();
 							} else if (key.isAcceptable()) {
 								((ProxyHandler) key.attachment()).accept(key);
 								Log.i(ProxyService.class.getName(), "New client connected");

@@ -5,10 +5,12 @@ import java.nio.channels.SelectionKey;
 
 import android.util.Log;
 
-public class ServerConnectionHandler extends AbstractConnectionHandler {
+public class ServerConnectionHandler implements ConnectionHandler {
+
+	private final State state;
 
 	public ServerConnectionHandler(State state) {
-		super(state);
+		this.state = state;
 	}
 
 	@Override
@@ -16,19 +18,19 @@ public class ServerConnectionHandler extends AbstractConnectionHandler {
 		try {
 			state.bufServerToClient.compact();
 			if (state.server.read(state.bufServerToClient) == -1) {
-				close();
+				state.server.close();
 			}
 			state.bufServerToClient.flip();
 
-			String data = Tools.decodeBuffer(state.bufClientToServer);
-			Log.v(ClientConnectionHandler.class.getName(), data);
+			String data = Tools.decodeBuffer(state.bufServerToClient);
+			data = Tools.doReplacements(data);
+			Tools.encodeBuffer(state.bufServerToClient, data);
 
-			if (data.contains("i")) {
-
-			}
+			Log.v(ServerConnectionHandler.class.getName(), data);
 		} catch (IOException e) {
 			Log.e(ServerConnectionHandler.class.getName(), "Unable to read from the server", e);
-			close();
+			closeAll();
+
 		}
 	}
 
@@ -36,9 +38,13 @@ public class ServerConnectionHandler extends AbstractConnectionHandler {
 	public void write() {
 		try {
 			state.server.write(state.bufClientToServer);
+
+			if (!state.bufClientToServer.hasRemaining() && !state.client.isConnected()) {
+				state.server.close();
+			}
 		} catch (IOException e) {
 			Log.e(ServerConnectionHandler.class.getName(), "Unable to write to the server", e);
-			close();
+			closeAll();
 		}
 	}
 
@@ -49,7 +55,15 @@ public class ServerConnectionHandler extends AbstractConnectionHandler {
 			}
 		} catch (IOException e) {
 			Log.e("ProxShark", "Unable to connect to the server", e);
-			((ConnectionHandler) state.serverKey.attachment()).close();
+			closeAll();
+		}
+	}
+
+	private void closeAll() {
+		try {
+			state.client.close();
+			state.server.close();
+		} catch (Exception ignored) {
 		}
 	}
 }
